@@ -94,7 +94,7 @@ npm run ios
 - src/context/FavoritesContext.jsx — AsyncStorage-backed favorites.
 
 ## Limitations and trade-offs
-
+- Featured section have static data.
 - Read-only offline only: cached reads are supported. Offline writes (create/update/delete while offline) are not reconciled with server automatically.
 - Not a full sync engine: for complex offline-first requirements use SQLite/Realm/WatermelonDB + a sync/queue system.
 - Large datasets: scanning or caching many items in memory may not scale. Consider normalizing entities or using a local DB.
