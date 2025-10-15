@@ -1,97 +1,104 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# myprolist (React Native)
 
-# Getting Started
+Small product-listing app demonstrating paging, product details and favorites with basic offline support using TanStack Query + AsyncStorage.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Goals
+- Fast UX by caching network responses.
+- Read-only offline support: previously fetched pages and product details available after restart.
+- Persist user favorites across restarts.
 
-## Step 1: Start Metro
+---
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Screenshots
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+| Home Screen | Product Detail Screen | Favorites Screen |
+|:------------:|:--------:|:------------:|
+| ![Home](assets/prolist1.jpg) | ![Product Detail](assets/prolist2.jpg) | ![Favorites](assets/prolist3.jpg) |
 
+
+---
+
+## Quick setup
+
+1. Install JS deps
 ```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+npm install
+# or
+yarn
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
+2. Install offline/native deps
 ```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+npm install @tanstack/react-query @tanstack/react-query-persist-client @tanstack/query-async-storage-persister @react-native-async-storage/async-storage @react-native-community/netinfo axios
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
+3. iOS only (macOS)
 ```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
+cd ios
+bundle install        # optional if using bundler
 bundle exec pod install
+cd ..
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
+4. Run
 ```sh
-# Using npm
+npm start
+npm run android
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Key libraries and why
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+- @tanstack/react-query
+  - Caching, background refetch, retries and mutation helpers. Good fit for read-heavy UIs.
+- @tanstack/react-query-persist-client + @tanstack/query-async-storage-persister
+  - Persist react-query cache to AsyncStorage so cached queries survive app restarts.
+- @react-native-async-storage/async-storage
+  - Cross-platform persistent key/value storage used for query cache and favorites.
+- @react-native-community/netinfo
+  - Mobile network state detection — wired into react-query onlineManager so refetches happen only when online.
+- axios / fetch
+  - HTTP client(s) used by the API module.
+- react-native-safe-area-context
+  - Safe-area handling for UI.
 
-## Step 3: Modify your app
+## How offline support is implemented (design / reasoning)
 
-Now that you have successfully run the app, let's make changes!
+1. Persisted query cache
+   - The QueryClient cache is persisted to AsyncStorage. This provides lightweight, app-wide read-only offline support without introducing a DB.
+   - Reason: simplest way to show previously fetched pages and items immediately on cold start.
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+2. NetInfo → onlineManager wiring
+   - NetInfo updates react-query's onlineManager so refetch behavior is correct (no spurious network calls when offline; automatic refetch when back online).
+   - Reason: reliable connectivity detection avoids failed network attempts.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+3. AppState focus handling
+   - AppState changes are used to trigger refetch-on-focus behavior when the app becomes active.
+   - Reason: keep data fresh when returning to foreground without aggressive polling.
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+4. Single-item cache warming
+   - The list screen warms per-item cache entries (['product', id]) in onSuccess of useInfiniteQuery.
+   - ProductDetailsScreen uses getCachedProductById(queryClient, id) as initialData for useQuery, falling back to route.params and only hitting network when needed.
+   - Reason: deterministic, fast hydration of details screen from persisted cache and avoids scanning unrelated queries.
 
-## Congratulations! :tada:
+5. Favorites persistence
+   - FavoritesContext persists favorites to AsyncStorage so favorites survive restarts and are available offline.
+   - Reason: user-facing data that must survive restarts — small and simple to persist.
 
-You've successfully run and modified your React Native App. :partying_face:
 
-### Now what?
+## Important files
+- App.jsx — QueryClient config, persister, NetInfo + AppState wiring.
+- src/lib/cacheUtils.js — getCachedProductById helper used by details screen.
+- src/screens/HomeScreen.jsx — useInfiniteQuery; warms per-item cache in onSuccess.
+- src/screens/ProductDetailsScreen.jsx — uses useQuery with initialData from cacheUtils.
+- src/context/FavoritesContext.jsx — AsyncStorage-backed favorites.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Limitations and trade-offs
 
-# Troubleshooting
+- Read-only offline only: cached reads are supported. Offline writes (create/update/delete while offline) are not reconciled with server automatically.
+- Not a full sync engine: for complex offline-first requirements use SQLite/Realm/WatermelonDB + a sync/queue system.
+- Large datasets: scanning or caching many items in memory may not scale. Consider normalizing entities or using a local DB.
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
 
-# Learn More
 
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+"# myprolist-react-native-app" 
